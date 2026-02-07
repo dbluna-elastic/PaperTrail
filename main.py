@@ -24,23 +24,31 @@ INDEX_NAME = "papertrail-papers"
 
 def create_index_if_not_exists():
     """Creates the index with the specified mapping if it doesn't exist."""
-    if not es.indices.exists(index=INDEX_NAME):
-        mapping = {
-            "mappings": {
+    mapping = {
+        "properties": {
+            "title": {"type": "text"},
+            "summary": {"type": "text"},
+            "authors": {"type": "keyword"},
+            "published": {"type": "date"},
+            "pdf_url": {"type": "keyword"},
+            "categories": {"type": "keyword"},
+            "content_embedding": {
                 "properties": {
-                    "title": {"type": "text"},
-                    "summary": {"type": "text"},
-                    "authors": {"type": "keyword"},
-                    "published": {"type": "date"},
-                    "pdf_url": {"type": "keyword"},
-                    "categories": {"type": "keyword"}
+                    "tokens": {
+                        "type": "rank_features"
+                    }
                 }
             }
         }
-        es.indices.create(index=INDEX_NAME, body=mapping)
+    }
+    
+    if not es.indices.exists(index=INDEX_NAME):
+        es.indices.create(index=INDEX_NAME, body={"mappings": mapping})
         print(f"Index '{INDEX_NAME}' created.")
     else:
-        print(f"Index '{INDEX_NAME}' already exists.")
+        # Update mapping just in case
+        es.indices.put_mapping(index=INDEX_NAME, body=mapping)
+        print(f"Index '{INDEX_NAME}' exists. Mapping updated.")
 
 def fetch_and_index():
     print("Starting paper fetch from arXiv...")
@@ -82,13 +90,24 @@ def fetch_and_index():
 
         # Bulk upload in chunks
         if len(actions) >= 50:
-            helpers.bulk(es, actions)
-            print(f"Indexed {len(actions)} papers...")
+            try:
+                helpers.bulk(es, actions, pipeline="papertrail-semantic-pipeline")
+                print(f"Indexed {len(actions)} papers...")
+            except helpers.BulkIndexError as e:
+                print("Bulk Indexing Failed (Batch)!")
+                if e.errors:
+                    print(f"First error: {e.errors[0]}")
             actions = []
 
-    if actions:
-        helpers.bulk(es, actions)
-        print(f"Indexed remaining {len(actions)} papers.")
+    try:
+        if actions:
+            helpers.bulk(es, actions, pipeline="papertrail-semantic-pipeline")
+            print(f"Indexed remaining {len(actions)} papers.")
+    except helpers.BulkIndexError as e:
+        print("Bulk Indexing Failed!")
+        print(f"First error: {e.errors[0]}")
+        # Continue or simple exit
+        pass
 
     print(f"Total papers processed: {count}")
 

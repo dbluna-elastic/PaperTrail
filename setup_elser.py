@@ -1,27 +1,18 @@
-import os
 import time
-from dotenv import load_dotenv
-from elasticsearch import Elasticsearch
 
-# Load environment variables
-load_dotenv()
-
-ELASTIC_ENDPOINT = os.getenv("ELASTIC_ENDPOINT")
-ELASTIC_API_KEY = os.getenv("ELASTIC_API_KEY")
+from config import (
+    ELASTIC_API_KEY,
+    ELASTIC_ENDPOINT,
+    MODEL_ID,
+    PIPELINE_NAME,
+    get_es_client,
+)
 
 if not ELASTIC_ENDPOINT or not ELASTIC_API_KEY:
     print("Error: ELASTIC_ENDPOINT and ELASTIC_API_KEY must be set in .env")
     exit(1)
 
-# Connect to Elastic Cloud
-es = Elasticsearch(
-    ELASTIC_ENDPOINT,
-    api_key=ELASTIC_API_KEY,
-    request_timeout=300
-)
-
-MODEL_ID = ".elser_model_2"
-PIPELINE_NAME = "papertrail-semantic-pipeline"
+es = get_es_client(request_timeout=300)
 
 def deploy_elser():
     print(f"Checking status of model '{MODEL_ID}'...")

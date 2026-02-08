@@ -1,26 +1,19 @@
-import os
-import time
 import arxiv
-from dotenv import load_dotenv
-from elasticsearch import Elasticsearch, helpers
+from elasticsearch import helpers
 
-# Load environment variables
-load_dotenv()
-
-ELASTIC_ENDPOINT = os.getenv("ELASTIC_ENDPOINT")
-ELASTIC_API_KEY = os.getenv("ELASTIC_API_KEY")
+from config import (
+    ELASTIC_API_KEY,
+    ELASTIC_ENDPOINT,
+    INDEX_NAME,
+    PIPELINE_NAME,
+    get_es_client,
+)
 
 if not ELASTIC_ENDPOINT or not ELASTIC_API_KEY:
     print("Error: ELASTIC_ENDPOINT and ELASTIC_API_KEY must be set in .env")
     exit(1)
 
-# Connect to Elastic Cloud
-es = Elasticsearch(
-    ELASTIC_ENDPOINT,
-    api_key=ELASTIC_API_KEY
-)
-
-INDEX_NAME = "papertrail-papers"
+es = get_es_client(request_timeout=300)
 
 def create_index_if_not_exists():
     """Creates the index with the specified mapping if it doesn't exist."""
@@ -91,7 +84,7 @@ def fetch_and_index():
         # Bulk upload in chunks
         if len(actions) >= 50:
             try:
-                helpers.bulk(es, actions, pipeline="papertrail-semantic-pipeline")
+                helpers.bulk(es, actions, pipeline=PIPELINE_NAME)
                 print(f"Indexed {len(actions)} papers...")
             except helpers.BulkIndexError as e:
                 print("Bulk Indexing Failed (Batch)!")
@@ -101,7 +94,7 @@ def fetch_and_index():
 
     try:
         if actions:
-            helpers.bulk(es, actions, pipeline="papertrail-semantic-pipeline")
+            helpers.bulk(es, actions, pipeline=PIPELINE_NAME)
             print(f"Indexed remaining {len(actions)} papers.")
     except helpers.BulkIndexError as e:
         print("Bulk Indexing Failed!")

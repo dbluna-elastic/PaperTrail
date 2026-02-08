@@ -7,3 +7,14 @@ services:
       - .:/app
     env_file:
       - .env
+    command: ["sh", "-c", "python setup_elser.py && python main.py"]
+
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    command: ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]

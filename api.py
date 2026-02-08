@@ -1,11 +1,24 @@
 """Minimal HTTP API for PaperTrail semantic search."""
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from config import ELASTIC_API_KEY, ELASTIC_ENDPOINT, get_es_client
 from search import semantic_search
 
 app = FastAPI(title="PaperTrail Search API")
+
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+
+@app.get("/")
+def index():
+    """Serve the search UI."""
+    index_file = STATIC_DIR / "index.html"
+    if not index_file.exists():
+        raise HTTPException(status_code=404, detail="Frontend not found")
+    return FileResponse(index_file)
 
 
 @app.get("/search")

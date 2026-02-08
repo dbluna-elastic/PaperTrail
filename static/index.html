@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PaperTrail – Semantic paper search</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --surface: #18181c;
+      --surface-hover: #1e1e24;
+      --border: #2a2a32;
+      --text: #e4e4e7;
+      --text-muted: #a1a1aa;
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --success: #22c55e;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "DM Sans", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .layout {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin: 0 0 0.25rem 0;
+      background: linear-gradient(135deg, #fff 0%, var(--text-muted) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .tagline {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin: 0;
+    }
+
+    .search-wrap {
+      position: relative;
+      margin-bottom: 2rem;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 1rem 1rem 1rem 3rem;
+      font-size: 1rem;
+      font-family: inherit;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .search-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .search-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 20px;
+      height: 20px;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    .search-icon svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .meta {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+    }
+
+    .meta strong {
+      color: var(--text);
+    }
+
+    .results {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .card:hover {
+      background: var(--surface-hover);
+      border-color: var(--accent);
+    }
+
+    .card-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin: 0 0 0.5rem 0;
+      line-height: 1.35;
+    }
+
+    .card-title a {
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .card-title a:hover {
+      color: var(--accent);
+    }
+
+    .card-meta {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 0.6rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1rem;
+    }
+
+    .card-abstract {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin: 0 0 0.75rem 0;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .score {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.75rem;
+      color: var(--accent);
+      background: rgba(99, 102, 241, 0.15);
+      padding: 0.2rem 0.5rem;
+      border-radius: var(--radius-sm);
+    }
+
+    .pdf-link {
+      font-size: 0.85rem;
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .pdf-link:hover {
+      color: var(--accent-hover);
+      text-decoration: underline;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--text-muted);
+    }
+
+    .empty p {
+      margin: 0 0 0.5rem 0;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+    }
+
+    .loading::after {
+      content: "";
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      margin-left: 0.5rem;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .error {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+      padding: 1rem 1.5rem;
+      border-radius: var(--radius);
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <header>
+      <h1>PaperTrail</h1>
+      <p class="tagline">Semantic search over arXiv CS papers</p>
+    </header>
+
+    <div class="search-wrap">
+      <span class="search-icon" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+      </span>
+      <input
+        type="search"
+        class="search-input"
+        id="query"
+        placeholder="Search by meaning, e.g. transformer attention mechanisms…"
+        autocomplete="off"
+        autofocus
+      />
+    </div>
+
+    <div id="meta" class="meta" hidden></div>
+    <div id="error" class="error" hidden></div>
+    <div id="results" class="results"></div>
+  </div>
+
+  <script>
+    const queryEl = document.getElementById("query");
+    const metaEl = document.getElementById("meta");
+    const errorEl = document.getElementById("error");
+    const resultsEl = document.getElementById("results");
+
+    let debounceTimer;
+
+    function showError(msg) {
+      errorEl.textContent = msg;
+      errorEl.hidden = false;
+      metaEl.hidden = true;
+      resultsEl.innerHTML = "";
+    }
+
+    function hideError() {
+      errorEl.hidden = true;
+    }
+
+    function setResults(html, total) {
+      hideError();
+      resultsEl.innerHTML = html;
+      if (total !== undefined && total > 0) {
+        metaEl.innerHTML = "<strong>" + total + "</strong> result" + (total === 1 ? "" : "s");
+        metaEl.hidden = false;
+      } else {
+        metaEl.hidden = true;
+      }
+    }
+
+    function renderHit(h) {
+      const authors = (h.authors || []).slice(0, 5).join(", ");
+      const more = (h.authors || []).length > 5 ? " et al." : "";
+      const date = h.published ? new Date(h.published).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "";
+      const score = h.score != null ? h.score.toFixed(2) : "";
+      const title = escapeHtml(h.title || "Untitled");
+      const abstract = escapeHtml((h.summary || "").slice(0, 320)) + ((h.summary || "").length > 320 ? "…" : "");
+      const pdf = (h.pdf_url || "#");
+      return (
+        '<article class="card">' +
+          '<h2 class="card-title"><a href="' + escapeAttr(pdf) + '" target="_blank" rel="noopener">' + title + "</a></h2>" +
+          '<div class="card-meta">' + escapeHtml(authors + more) + (date ? " · " + date : "") + "</div>" +
+          (abstract ? '<p class="card-abstract">' + abstract + "</p>" : "") +
+          '<div class="card-footer">' +
+            (score ? '<span class="score">score ' + score + "</span>" : "") +
+            (pdf !== "#" ? '<a class="pdf-link" href="' + escapeAttr(pdf) + '" target="_blank" rel="noopener">PDF</a>' : "") +
+          "</div>" +
+        "</article>"
+      );
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement("div");
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    function escapeAttr(s) {
+      return escapeHtml(s).replace(/"/g, "&quot;");
+    }
+
+    async function search() {
+      const q = (queryEl.value || "").trim();
+      if (!q) {
+        setResults("", 0);
+        resultsEl.innerHTML = '<div class="empty"><p>Enter a search query above.</p></div>';
+        return;
+      }
+
+      resultsEl.innerHTML = '<div class="loading">Searching</div>';
+      metaEl.hidden = true;
+      hideError();
+
+      try {
+        const res = await fetch("/search?q=" + encodeURIComponent(q) + "&size=20");
+        const data = await res.json();
+        if (!res.ok) {
+          showError(data.detail || "Search failed.");
+          return;
+        }
+        const hits = data.hits || [];
+        const total = data.total ?? 0;
+        if (hits.length === 0) {
+          setResults('<div class="empty"><p>No results for this query.</p></div>', total);
+          return;
+        }
+        setResults(hits.map(renderHit).join(""), total);
+      } catch (e) {
+        showError("Network error: " + (e.message || "Could not reach server."));
+      }
+    }
+
+    queryEl.addEventListener("input", function () {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(search, 300);
+    });
+
+    queryEl.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        clearTimeout(debounceTimer);
+        search();
+      }
+    });
+
+    // Optional: run once if URL has ?q=...
+    const params = new URLSearchParams(location.search);
+    const initialQ = params.get("q");
+    if (initialQ) {
+      queryEl.value = initialQ;
+      search();
+    }
+  </script>
+</body>
+</html>

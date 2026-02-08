@@ -58,10 +58,18 @@ Then:
 - `GET /search?q=transformer%20attention&size=20` – semantic search; returns JSON with `hits` and `total`
 - `GET /health` – health check
 
+## Docker
+
+- **Index papers (one-off):** `docker compose run --rm papertrail` – runs `setup_elser.py` then `main.py`.
+- **Search website:** `docker compose up web` – runs the search API and UI on port 8000. Open http://localhost:8000 for the search interface.
+
+Ensure `.env` is present with `ELASTIC_ENDPOINT` and `ELASTIC_API_KEY`.
+
 ## Project layout
 
 - `config.py` – shared Elasticsearch client, index name, model ID, pipeline name
 - `setup_elser.py` – deploy ELSER and create ingest pipeline
 - `main.py` – create index and index arXiv papers
 - `search.py` – semantic search (reusable function + CLI)
-- `api.py` – FastAPI app with `/search` and `/health`
+- `api.py` – FastAPI app with `/search`, `/health`, and `/` (search UI)
+- `static/index.html` – search UI (single-page app)

@@ -50,7 +50,7 @@ def fetch_and_index():
     # Using sort_by=SubmittedDate to get recent ones
     search = arxiv.Search(
         query="cat:cs.*",
-        max_results=100, # Start with a smaller batch for testing
+        max_results=1000,
         sort_by=arxiv.SortCriterion.SubmittedDate
     )
 

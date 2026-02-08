@@ -8,6 +8,10 @@ load_dotenv()
 ELASTIC_ENDPOINT = os.getenv("ELASTIC_ENDPOINT")
 ELASTIC_API_KEY = os.getenv("ELASTIC_API_KEY")
 
+KIBANA_URL = os.getenv("KIBANA_URL", "").rstrip("/")
+KIBANA_API_KEY = os.getenv("KIBANA_API_KEY")
+AGENT_ID = os.getenv("AGENT_ID", "elastic-ai-agent")
+
 INDEX_NAME = "papertrail-papers"
 MODEL_ID = ".elser_model_2"
 PIPELINE_NAME = "papertrail-semantic-pipeline"

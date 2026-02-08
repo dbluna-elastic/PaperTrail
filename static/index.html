@@ -241,6 +241,50 @@
       border-radius: var(--radius);
       margin-bottom: 1rem;
     }
+
+    .btn-summarize {
+      font-size: 0.85rem;
+      font-family: inherit;
+      color: var(--accent);
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius-sm);
+      padding: 0.35rem 0.65rem;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .btn-summarize:hover:not(:disabled) {
+      background: rgba(99, 102, 241, 0.25);
+      color: var(--accent-hover);
+    }
+
+    .btn-summarize:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
+    .card-summary {
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .card-summary-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+      margin-bottom: 0.35rem;
+    }
+
+    .card-summary-error {
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+      color: #fca5a5;
+    }
   </style>
 </head>
 <body>
@@ -301,6 +345,8 @@
       }
     }
 
+    let currentHits = [];
+
     function renderHit(h) {
       const authors = (h.authors || []).slice(0, 5).join(", ");
       const more = (h.authors || []).length > 5 ? " et al." : "";
@@ -309,15 +355,20 @@
       const title = escapeHtml(h.title || "Untitled");
       const abstract = escapeHtml((h.summary || "").slice(0, 320)) + ((h.summary || "").length > 320 ? "…" : "");
       const pdf = (h.pdf_url || "#");
+      const id = escapeAttr(h.id || "");
+      const slug = (h.id || "").replace(/[^a-zA-Z0-9-]/g, "_");
       return (
-        '<article class="card">' +
+        '<article class="card" data-id="' + id + '">' +
           '<h2 class="card-title"><a href="' + escapeAttr(pdf) + '" target="_blank" rel="noopener">' + title + "</a></h2>" +
           '<div class="card-meta">' + escapeHtml(authors + more) + (date ? " · " + date : "") + "</div>" +
           (abstract ? '<p class="card-abstract">' + abstract + "</p>" : "") +
           '<div class="card-footer">' +
             (score ? '<span class="score">score ' + score + "</span>" : "") +
+            '<button type="button" class="btn-summarize" data-action="summarize">Summarize</button>' +
             (pdf !== "#" ? '<a class="pdf-link" href="' + escapeAttr(pdf) + '" target="_blank" rel="noopener">PDF</a>' : "") +
           "</div>" +
+          '<div class="card-summary" id="summary-' + slug + '" hidden></div>' +
+          '<div class="card-summary-error" id="summary-err-' + slug + '" hidden></div>' +
         "</article>"
       );
     }
@@ -353,6 +404,7 @@
         }
         const hits = data.hits || [];
         const total = data.total ?? 0;
+        currentHits = hits;
         if (hits.length === 0) {
           setResults('<div class="empty"><p>No results for this query.</p></div>', total);
           return;
@@ -372,6 +424,52 @@
       if (e.key === "Enter") {
         clearTimeout(debounceTimer);
         search();
+      }
+    });
+
+    resultsEl.addEventListener("click", async function (e) {
+      const btn = e.target.closest('button[data-action="summarize"]');
+      if (!btn) return;
+      const card = btn.closest(".card");
+      if (!card) return;
+      const paperId = card.getAttribute("data-id");
+      const hit = currentHits.find(function (h) { return (h.id || "") === paperId; });
+      if (!hit) return;
+
+      const summaryEl = card.querySelector(".card-summary");
+      const errEl = card.querySelector(".card-summary-error");
+      if (summaryEl.getAttribute("data-done") === "1") return;
+
+      btn.disabled = true;
+      btn.textContent = "Summarizing…";
+      errEl.hidden = true;
+      errEl.textContent = "";
+      summaryEl.hidden = true;
+      summaryEl.innerHTML = "";
+
+      try {
+        const res = await fetch("/summarize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: hit.title || "", summary: hit.summary || "" }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errEl.textContent = data.detail || "Summarize failed.";
+          errEl.hidden = false;
+          btn.disabled = false;
+          btn.textContent = "Summarize";
+          return;
+        }
+        summaryEl.innerHTML = '<span class="card-summary-label">AI summary</span><p>' + escapeHtml(data.summary || "") + "</p>";
+        summaryEl.hidden = false;
+        summaryEl.setAttribute("data-done", "1");
+        btn.textContent = "Summarized";
+      } catch (err) {
+        errEl.textContent = "Network error: " + (err.message || "Could not reach server.");
+        errEl.hidden = false;
+        btn.disabled = false;
+        btn.textContent = "Summarize";
       }
     });
 

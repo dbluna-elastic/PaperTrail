@@ -1,5 +1,6 @@
 arxiv
 elasticsearch
 fastapi
+openlit
 python-dotenv
 uvicorn

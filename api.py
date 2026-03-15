@@ -4,6 +4,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from opentelemetry.trace import SpanKind, Status, StatusCode, get_tracer
 from pydantic import BaseModel
 
 from fastapi import FastAPI, HTTPException
@@ -15,9 +16,19 @@ from config import (
     ELASTIC_ENDPOINT,
     KIBANA_API_KEY,
     KIBANA_URL,
+    OTEL_EXPORTER_OTLP_ENDPOINT,
+    OTEL_EXPORTER_OTLP_HEADERS,
     get_es_client,
 )
 from search import semantic_search
+
+if OTEL_EXPORTER_OTLP_ENDPOINT:
+    import openlit
+    openlit.init(
+        otlp_endpoint=OTEL_EXPORTER_OTLP_ENDPOINT,
+        otlp_headers=OTEL_EXPORTER_OTLP_HEADERS or None,
+        service_name="papertrail",
+    )
 
 app = FastAPI(title="PaperTrail Search API")
 
@@ -84,6 +95,27 @@ class SummarizeBody(BaseModel):
     summary: str = ""
 
 
+def _estimate_tokens(text: str) -> int:
+    """Rough token estimate (chars / 4). Use when Kibana does not return usage."""
+    return max(0, len((text or "").strip()) // 4)
+
+
+def _parse_usage_from_kibana(data: dict, prompt: str, reply: str) -> tuple[int, int, int]:
+    """Extract input/output/total token counts from Kibana response or estimate."""
+    usage = (data.get("response") or {}).get("usage") or data.get("usage")
+    if isinstance(usage, dict):
+        inp = usage.get("input_tokens") or usage.get("prompt_tokens")
+        out = usage.get("output_tokens") or usage.get("completion_tokens")
+        if inp is not None and out is not None:
+            total = usage.get("total_tokens")
+            if total is None:
+                total = inp + out
+            return int(inp), int(out), int(total)
+    input_tokens = _estimate_tokens(prompt)
+    output_tokens = _estimate_tokens(reply)
+    return input_tokens, output_tokens, input_tokens + output_tokens
+
+
 @app.post("/summarize")
 def summarize(body: SummarizeBody):
     """
@@ -103,44 +135,65 @@ def summarize(body: SummarizeBody):
     prompt = f"Summarize this paper in 2-3 sentences.\n\nTitle: {title}\n\nAbstract: {summary_text}"
     payload = json.dumps({"input": prompt, "agent_id": AGENT_ID}).encode("utf-8")
 
-    req = urllib.request.Request(
-        f"{KIBANA_URL}/api/agent_builder/converse",
-        data=payload,
-        method="POST",
-        headers={
-            "Authorization": f"ApiKey {KIBANA_API_KEY}",
-            "kbn-xsrf": "true",
-            "Content-Type": "application/json",
-        },
-    )
-
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            data = json.loads(resp.read().decode())
-    except urllib.error.HTTPError as e:
-        body = e.read().decode() if e.fp else ""
+    tracer = get_tracer(__name__)
+    with tracer.start_as_current_span("gen_ai.generate", kind=SpanKind.CLIENT) as span:
+        span.set_attribute("gen_ai.request.model", AGENT_ID)
         try:
-            err = json.loads(body)
-            msg = err.get("message") or err.get("error") or body or str(e)
-        except Exception:
-            msg = body or str(e)
-        raise HTTPException(status_code=502, detail=f"Kibana Agent Builder error: {msg}")
-    except urllib.error.URLError as e:
-        raise HTTPException(status_code=503, detail=f"Cannot reach Kibana: {e.reason}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+            req = urllib.request.Request(
+                f"{KIBANA_URL}/api/agent_builder/converse",
+                data=payload,
+                method="POST",
+                headers={
+                    "Authorization": f"ApiKey {KIBANA_API_KEY}",
+                    "kbn-xsrf": "true",
+                    "Content-Type": "application/json",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                data = json.loads(resp.read().decode())
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode() if e.fp else ""
+            try:
+                err = json.loads(err_body)
+                msg = err.get("message") or err.get("error") or err_body or str(e)
+            except Exception:
+                msg = err_body or str(e)
+            span.set_status(Status(StatusCode.ERROR, msg))
+            span.record_exception(e)
+            raise HTTPException(status_code=502, detail=f"Kibana Agent Builder error: {msg}")
+        except urllib.error.URLError as e:
+            span.set_status(Status(StatusCode.ERROR, str(e.reason)))
+            span.record_exception(e)
+            raise HTTPException(status_code=503, detail=f"Cannot reach Kibana: {e.reason}")
+        except Exception as e:
+            span.set_status(Status(StatusCode.ERROR, str(e)))
+            span.record_exception(e)
+            raise HTTPException(status_code=500, detail=str(e))
 
-    # Kibana converse response: response.message contains the agent reply
-    reply = (data.get("response") or {}).get("message", "")
-    if not reply and data.get("steps"):
-        for step in data.get("steps", []):
-            if step.get("type") == "response" and step.get("message"):
-                reply = step["message"]
-                break
-    if not reply:
-        reply = json.dumps(data)[:500]
+        reply = (data.get("response") or {}).get("message", "")
+        if not reply and data.get("steps"):
+            for step in data.get("steps", []):
+                if step.get("type") == "response" and step.get("message"):
+                    reply = step["message"]
+                    break
+        if not reply:
+            reply = json.dumps(data)[:500]
 
-    return JSONResponse(content={"summary": reply})
+        input_tokens, output_tokens, total_tokens = _parse_usage_from_kibana(data, prompt, reply)
+        span.set_attribute("gen_ai.usage.input_tokens", input_tokens)
+        span.set_attribute("gen_ai.usage.output_tokens", output_tokens)
+        span.set_attribute("gen_ai.usage.total_tokens", total_tokens)
+
+    return JSONResponse(
+        content={
+            "summary": reply,
+            "usage": {
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": total_tokens,
+            },
+        }
+    )
 
 
 @app.get("/health")

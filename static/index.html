@@ -280,6 +280,12 @@
       margin-bottom: 0.35rem;
     }
 
+    .card-summary-meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+    }
+
     .card-summary-error {
       margin-top: 0.5rem;
       font-size: 0.85rem;
@@ -461,7 +467,15 @@
           btn.textContent = "Summarize";
           return;
         }
-        summaryEl.innerHTML = '<span class="card-summary-label">AI summary</span><p>' + escapeHtml(data.summary || "") + "</p>";
+        let html = '<span class="card-summary-label">AI summary</span><p>' + escapeHtml(data.summary || "") + "</p>";
+        if (data.usage && (data.usage.total_tokens != null || data.usage.input_tokens != null)) {
+          const u = data.usage;
+          const inN = u.input_tokens != null ? u.input_tokens : "";
+          const outN = u.output_tokens != null ? u.output_tokens : "";
+          const tot = u.total_tokens != null ? u.total_tokens : "";
+          html += '<p class="card-summary-meta">Tokens: ' + inN + " in / " + outN + " out" + (tot !== "" ? " (" + tot + " total)" : "") + "</p>";
+        }
+        summaryEl.innerHTML = html;
         summaryEl.hidden = false;
         summaryEl.setAttribute("data-done", "1");
         btn.textContent = "Summarized";

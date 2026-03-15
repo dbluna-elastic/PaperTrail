@@ -79,6 +79,22 @@ The search UI includes a **Summarize** button on each result card. It uses [Elas
 
 If these are not set, clicking Summarize will show an error asking you to configure them.
 
+## Observability (OpenLIT + Elastic)
+
+When configured, the app sends traces to Elastic APM via [OpenLIT](https://github.com/openlit/openlit) (OpenTelemetry). You get request tracing for all routes and LLM spans for Summarize calls, including token usage.
+
+**Setup:**
+
+1. In Kibana go to **Observability → APM → Add data → OpenTelemetry** and complete the steps.
+2. Copy `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_HEADERS` (use `Authorization=Bearer%20<API_KEY>` format).
+3. Set them in `.env`:
+   - `OTEL_EXPORTER_OTLP_ENDPOINT` – e.g. `https://<id>.apm.<region>.cloud.es.io:443`
+   - `OTEL_EXPORTER_OTLP_HEADERS` – e.g. `Authorization=Bearer%20<your-api-key>`
+
+If these are not set, the app runs as before and no traces are exported. The Summarize response still includes a `usage` object (input/output/total tokens) for the UI; token counts are estimated when Kibana does not return usage.
+
+**Optional:** Import the OpenLIT GenAI dashboard (NDJSON) from [OpenLIT Elastic docs](https://docs.openlit.io/latest/sdk/destinations/elastic) via **Stack Management → Saved Objects** to view GenAI metrics in Kibana.
+
 ## Project layout
 
 - `config.py` – shared Elasticsearch client, index name, model ID, pipeline name

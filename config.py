@@ -12,6 +12,9 @@ KIBANA_URL = os.getenv("KIBANA_URL", "").rstrip("/")
 KIBANA_API_KEY = os.getenv("KIBANA_API_KEY")
 AGENT_ID = os.getenv("AGENT_ID", "elastic-ai-agent")
 
+OTEL_EXPORTER_OTLP_ENDPOINT = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").rstrip("/")
+OTEL_EXPORTER_OTLP_HEADERS = os.getenv("OTEL_EXPORTER_OTLP_HEADERS", "")
+
 INDEX_NAME = "papertrail-papers"
 MODEL_ID = ".elser_model_2"
 PIPELINE_NAME = "papertrail-semantic-pipeline"

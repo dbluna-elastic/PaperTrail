@@ -1,5 +1,6 @@
 arxiv
 elasticsearch
+eval-type-backport
 fastapi
 openlit
 python-dotenv

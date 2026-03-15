@@ -95,6 +95,13 @@ If these are not set, the app runs as before and no traces are exported. The Sum
 
 **Optional:** Import the OpenLIT GenAI dashboard (NDJSON) from [OpenLIT Elastic docs](https://docs.openlit.io/latest/sdk/destinations/elastic) via **Stack Management → Saved Objects** to view GenAI metrics in Kibana.
 
+**How to check traces:**
+
+1. **Where to look in Kibana:** Observability → APM → **Services**. Select the **papertrail** service. Open **Transactions** or **Traces** and set the time range to "Last 15 minutes" (or when you generated traffic).
+2. **Header format:** Elastic expects `OTEL_EXPORTER_OTLP_HEADERS` exactly as shown in Kibana when you add OpenTelemetry data. Usually it is `Authorization=Bearer%20<secret_token>` (APM secret token), not a raw API key. If you see "Internal Server Error" or "Failed to export" in the app logs, the header is often wrong — use the **Secret token** from the same APM setup page and set `OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer%20<your_secret_token>`.
+3. **Generate traffic:** Open http://localhost:8000, run a search, and click **Summarize** on a result. Wait 1–2 minutes, then refresh the APM view in Kibana.
+4. **Check app logs:** `docker compose logs web --tail 30`. You should not see "Error during openLIT initialization" or "Failed to export span batch". If OpenLIT init fails (e.g. on Python 3.9), ensure `eval-type-backport` is installed and rebuild the image.
+
 ## Project layout
 
 - `config.py` – shared Elasticsearch client, index name, model ID, pipeline name
